@@ -93,20 +93,20 @@ local animations = {
 	[MINE] = function(player)
 		local name = player:get_player_name()
 		local r = math.sin(step / full_step[name] * 2 * math.rad(120))
-		local look = math.deg(player:get_look_pitch())
+		local pitch = player:get_look_pitch() * 180 / math.pi
 		rotate(player, CAPE, r*5+10)
 		rotate(player, LARM)
-		rotate(player, RARM, r*20+80+look)
+		rotate(player, RARM, r*20+80+pitch)
 		rotate(player, LLEG)
 		rotate(player, RLEG)
 	end,
 	[WALK_MINE] = function(player)
 		local name = player:get_player_name()
 		local r = math.sin(step / full_step[name] * 2 * math.rad(120))
-		local look = math.deg(player:get_look_pitch())
+		local pitch = player:get_look_pitch() * 180 / math.pi
 		rotate(player, CAPE, r*30+35)
 		rotate(player, LARM, r*-40)
-		rotate(player, RARM, r*20+80+look)
+		rotate(player, RARM, r*20+80+pitch)
 		rotate(player, LLEG, r*40)
 		rotate(player, RLEG, r*-40)
 	end,
@@ -152,7 +152,7 @@ end
 
 -- Head animate
 local function head_rotate(player, controls)
-	local pitch = player:get_look_pitch()*180/math.pi
+	local pitch = player:get_look_pitch() * 180 / math.pi
 	local look
 	if controls.left and not controls.right then
 		look = vector_new(pitch, -10, 0)
