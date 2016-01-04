@@ -111,7 +111,7 @@ local animations = {
 		rotate(player, RLEG, r*-40)
 	end,
 	[SIT] = function(player)
-		local body_pos = table.copy(bone_pos[model][BODY])
+		local body_pos = table.copy(bone_position[model][BODY])
 		body_pos.y = body_pos.y - 6
 		player:set_bone_position(BODY, body_pos, vector_new(0, 0, 0))
 		rotate(player, LARM)
@@ -124,7 +124,7 @@ local animations = {
 		rotate(player, HEAD)
 	end,
 	[SNEAK] = function(player)
-		rotate(player, BODY, 10)
+		rotate(player, BODY, 5)
 	end,
 	[RESET_BODY] = function(player)
 		rotate(player, BODY)
@@ -143,25 +143,33 @@ end
 local current_animation = {}
 local function animate(player, anim)
 	local name = player:get_player_name()
-	if anim == WALK or anim == MINE or anim == WALK_MINE
-	or current_animation[name] ~= anim then
-		current_animation[name] = anim
+	if anim == SNEAK or anim == RESET_BODY then
+		if current_animation[name][1] ~= anim then
+			current_animation[name][1] = anim
+			animations[anim](player)
+		end
+	elseif anim == WALK or anim == MINE or anim == WALK_MINE
+	or current_animation[name][2] ~= anim then
+		current_animation[name][2] = anim
 		animations[anim](player)
 	end
 end
 
 -- Head animate
+local current_head = {}
 local function head_rotate(player, controls)
 	local pitch = player:get_look_pitch() * 180 / math.pi
-	local look
-	if controls.left and not controls.right then
-		look = vector_new(pitch, -10, 0)
-	elseif controls.right and not controls.left then
-		look = vector_new(pitch, 10, 0)
-	else
-		look = vector_new(pitch, 0, 0)
+	local look = vector_new(pitch, 0, 0)
+	if controls.left ~= controls.right then
+		look.y = controls.right and 10 or -10
 	end
-	rotate(player, HEAD, look.x, look.y, look.z)
+
+	local name = player:get_player_name()
+	local old_pitch, old_look = current_head[name][1], current_head[name][2]
+	if old_pitch ~= pitch or (not old_look or not vector.equals(old_look, look)) then
+		current_head[name] = {pitch, look}
+		rotate(player, HEAD, look.x, look.y, look.z)
+	end
 end
 
 -- Sneak move
@@ -177,15 +185,19 @@ minetest.register_on_joinplayer(function(player)
 			textures = {"character.png"}
 		})
 	end
+	local name = player:get_player_name()
+	full_step[name] = 0.5
+	current_head[name] = {}
+	current_animation[name] = {}
 	animate(player, STAND)
-	full_step[player:get_player_name()] = 0.5
 end)
 
 -- Remove data
 minetest.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
-	current_animation[name] = nil
 	full_step[name] = nil
+	current_head[name] = nil
+	current_animation[name] = nil
 end)
 
 minetest.register_globalstep(function(dtime)
