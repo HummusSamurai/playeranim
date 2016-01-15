@@ -187,12 +187,6 @@ local function set_sneak(player, bool_sneak)
 end
 
 minetest.register_on_joinplayer(function(player)
-	if model == "normal" then
-		player:set_properties({
-			mesh = "character.b3d",
-			textures = {"character.png"}
-		})
-	end
 	local name = player:get_player_name()
 	current_head[name] = {}
 	current_animation[name] = {}
