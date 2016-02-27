@@ -6,7 +6,6 @@ local vector_add = vector.add
 local vector_equals = vector.equals
 local math_sin = math.sin
 local math_deg = math.deg
-local table_copy = table.copy
 local get_animation = default.player_get_animation
 local get_connected_players = minetest.get_connected_players
 
@@ -121,7 +120,7 @@ local animations = {
 		rotate(player, RLEG, swing * -40)
 	end,
 	[SIT] = function(player)
-		local body_pos = table_copy(bone_position[model][BODY])
+		local body_pos = vector_new(bone_position[model][BODY])
 		body_pos.y = body_pos.y - 6
 		player:set_bone_position(BODY, body_pos, vector_new(0, 0, 0))
 		rotate(player, LARM)
@@ -202,7 +201,7 @@ local function head_rotate(player, controls)
 	end
 end
 
-local function set_sneak(player, bool_sneak)
+local function set_sneak_animation(player, bool_sneak)
 	set_animation(player, bool_sneak and SNEAK or RESET_BODY)
 end
 
@@ -241,20 +240,20 @@ minetest.register_globalstep(function(dtime)
 			if animation == "walk" then
 				set_animation_speed(player, bool_sneak)
 				set_animation(player, WALK)
-				set_sneak(player, bool_sneak)
+				set_sneak_animation(player, bool_sneak)
 			elseif animation == "mine" then
 				set_animation_speed(player, bool_sneak)
 				set_animation(player, MINE)
-				set_sneak(player, bool_sneak)
+				set_sneak_animation(player, bool_sneak)
 			elseif animation == "walk_mine" then
 				set_animation_speed(player, bool_sneak)
 				set_animation(player, WALK_MINE)
-				set_sneak(player, bool_sneak)
+				set_sneak_animation(player, bool_sneak)
 			elseif animation == "sit" then
 				set_animation(player, SIT)
 			else
 				set_animation(player, STAND)
-				set_sneak(player, bool_sneak)
+				set_sneak_animation(player, bool_sneak)
 			end
 
 			head_rotate(player, controls)
