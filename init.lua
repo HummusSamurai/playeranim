@@ -8,6 +8,7 @@ local math_sin = math.sin
 local math_deg = math.deg
 local table_copy = table.copy
 local get_animation = default.player_get_animation
+local get_connected_players = minetest.get_connected_players
 
 -- Animation alias
 local STAND = 1
@@ -70,7 +71,6 @@ local bone_rotation = {
 	}
 }
 
--- Bone rotate
 local function rotate(player, bone, x, y, z)
 	local rotation = vector_add(vector_new(x or 0, y or 0, z or 0), bone_rotation[model][bone])
 	player:set_bone_position(bone, bone_position[model][bone], rotation)
@@ -78,6 +78,8 @@ end
 
 local step = 0
 local animation_speed = {}
+local look_pitch = {}
+
 local animations = {
 	[STAND] = function(player)
 		rotate(player, BODY)
@@ -98,7 +100,7 @@ local animations = {
 	end,
 	[MINE] = function(player)
 		local name = player:get_player_name()
-		local pitch = math_deg(player:get_look_pitch())
+		local pitch = look_pitch[name]
 		local swing = math_sin(step * 4 * animation_speed[name])
 		local hand_swing = math_sin(step * 8 * animation_speed[name])
 		rotate(player, CAPE, swing * 5 + 10)
@@ -109,7 +111,7 @@ local animations = {
 	end,
 	[WALK_MINE] = function(player)
 		local name = player:get_player_name()
-		local pitch = math_deg(player:get_look_pitch())
+		local pitch = look_pitch[name]
 		local swing = math_sin(step * 4 * animation_speed[name])
 		local hand_swing = math_sin(step * 8 * animation_speed[name])
 		rotate(player, CAPE, swing * 30 + 35)
@@ -139,41 +141,60 @@ local animations = {
 	end
 }
 
--- Set animation speed
-local function set_speed(player, bool_sneak)
+local function update_look_pitch(player)
 	local name = player:get_player_name()
-	local n = bool_sneak and 0.75 or 2
-	if n ~= animation_speed[name] then
-		animation_speed[name] = n
+	local pitch = math_deg(player:get_look_pitch())
+
+	if look_pitch[name] ~= pitch then
+		look_pitch[name] = pitch
 	end
 end
 
--- Set animation
+local function set_animation_speed(player, bool_sneak)
+	local name = player:get_player_name()
+	local speed = bool_sneak and 0.75 or 2
+
+	if animation_speed[name] ~= speed then
+		animation_speed[name] = speed
+	end
+end
+
 local current_animation = {}
+
 local function set_animation(player, anim)
 	local name = player:get_player_name()
+
 	if anim == LAY or anim == SNEAK or anim == RESET_BODY then
 		if current_animation[name][1] ~= anim then
 			current_animation[name][1] = anim
 			animations[anim](player)
 		end
-	elseif anim == WALK or anim == MINE or anim == WALK_MINE
-	or current_animation[name][2] ~= anim then
+		return
+	end
+
+	if anim == WALK or anim == MINE or anim == WALK_MINE then
+		current_animation[name][2] = anim
+		animations[anim](player)
+		return
+	end
+
+	if current_animation[name][2] ~= anim then
 		current_animation[name][2] = anim
 		animations[anim](player)
 	end
 end
 
--- Head rotate
 local current_head = {}
+
 local function head_rotate(player, controls)
-	local pitch = math_deg(player:get_look_pitch())
+	local name = player:get_player_name()
+
+	local pitch = look_pitch[name]
 	local look = vector_new(pitch, 0, 0)
 	if controls.left ~= controls.right then
 		look.y = controls.right and 10 or -10
 	end
 
-	local name = player:get_player_name()
 	local old_pitch, old_look = current_head[name][1], current_head[name][2]
 	if old_pitch ~= pitch or (not old_look or not vector_equals(old_look, look)) then
 		current_head[name] = {pitch, look}
@@ -181,7 +202,6 @@ local function head_rotate(player, controls)
 	end
 end
 
--- Sneak animation
 local function set_sneak(player, bool_sneak)
 	set_animation(player, bool_sneak and SNEAK or RESET_BODY)
 end
@@ -195,17 +215,18 @@ end)
 minetest.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
 	animation_speed[name] = nil
+	look_pitch[name] = nil
 	current_head[name] = nil
 	current_animation[name] = nil
 end)
 
 minetest.register_globalstep(function(dtime)
-	step = dtime + step
+	step = step + dtime
 	if step >= 3600 then
-		step = 0
+		step = 1
 	end
 
-	for _, player in ipairs(minetest.get_connected_players()) do
+	for _, player in ipairs(get_connected_players()) do
 		local animation = get_animation(player).animation
 
 		if animation == "lay" then -- No head rotate
@@ -215,16 +236,18 @@ minetest.register_globalstep(function(dtime)
 			local controls = player:get_player_control()
 			local bool_sneak = controls.sneak
 
+			update_look_pitch(player)
+
 			if animation == "walk" then
-				set_speed(player, bool_sneak)
+				set_animation_speed(player, bool_sneak)
 				set_animation(player, WALK)
 				set_sneak(player, bool_sneak)
 			elseif animation == "mine" then
-				set_speed(player, bool_sneak)
+				set_animation_speed(player, bool_sneak)
 				set_animation(player, MINE)
 				set_sneak(player, bool_sneak)
 			elseif animation == "walk_mine" then
-				set_speed(player, bool_sneak)
+				set_animation_speed(player, bool_sneak)
 				set_animation(player, WALK_MINE)
 				set_sneak(player, bool_sneak)
 			elseif animation == "sit" then
