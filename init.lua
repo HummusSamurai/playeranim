@@ -2,12 +2,12 @@ local model = minetest.get_modpath("3d_armor") and "armor" or "normal"
 
 -- Localize functions to avoid table lookups (better performance)
 local vector_new = vector.new
-local vector_add = vector.add
-local vector_equals = vector.equals
 local math_sin = math.sin
 local math_deg = math.deg
+local table_remove = table.remove
 local get_animation = default.player_get_animation
 local get_connected_players = minetest.get_connected_players
+local ipairs = ipairs
 
 -- Animation alias
 local STAND = 1
@@ -16,8 +16,6 @@ local MINE = 3
 local WALK_MINE = 4
 local SIT = 5
 local LAY = 6
-local SNEAK = 7
-local RESET_BODY = 8
 
 -- Bone alias
 local BODY = "Body"
@@ -28,10 +26,10 @@ local RARM = "Arm_Right"
 local LLEG = "Leg_Left"
 local RLEG = "Leg_Right"
 
-local bone_position = {
+local bone_positions = {
 	normal = {
 		[BODY] = vector_new(0, -3.5, 0),
-		[HEAD] = vector_new(0, 6, 0),
+		[HEAD] = vector_new(0, 6.5, 0),
 		[CAPE] = vector_new(0, 6.5, 1.5),
 		[LARM] = vector_new(-3.9, 6.5, 0),
 		[RARM] = vector_new(3.9, 6.5, 0),
@@ -49,13 +47,13 @@ local bone_position = {
 	}
 }
 
-local bone_rotation = {
+local bone_rotations = {
 	normal = {
 		[BODY] = vector_new(0, 0, 0),
 		[HEAD] = vector_new(0, 0, 0),
 		[CAPE] = vector_new(0, 0, 180),
-		[LARM] = vector_new(180, 0, 0),
-		[RARM] = vector_new(180, 0, 0),
+		[LARM] = vector_new(180, 0, 7.5),
+		[RARM] = vector_new(180, 0, -7.5),
 		[LLEG] = vector_new(0, 0, 0),
 		[RLEG] = vector_new(0, 0, 0)
 	},
@@ -70,14 +68,22 @@ local bone_rotation = {
 	}
 }
 
+local bone_rotation = bone_rotations[model]
+local bone_position = bone_positions[model]
+
 local function rotate(player, bone, x, y, z)
-	local rotation = vector_add(vector_new(x or 0, y or 0, z or 0), bone_rotation[model][bone])
-	player:set_bone_position(bone, bone_position[model][bone], rotation)
+	local default_rotation = bone_rotation[bone]
+	local rotation = {
+		x = (x or 0) + default_rotation.x,
+		y = (y or 0) + default_rotation.y,
+		z = (z or 0) + default_rotation.z
+	}
+	player:set_bone_position(bone, bone_position[bone], rotation)
 end
 
 local step = 0
-local animation_speed = {}
 local look_pitch = {}
+local animation_speed = {}
 
 local animations = {
 	[STAND] = function(player)
@@ -88,55 +94,66 @@ local animations = {
 		rotate(player, LLEG)
 		rotate(player, RLEG)
 	end,
+
 	[WALK] = function(player)
 		local name = player:get_player_name()
+
 		local swing = math_sin(step * 4 * animation_speed[name])
+
 		rotate(player, CAPE, swing * 30 + 35)
 		rotate(player, LARM, swing * -40)
 		rotate(player, RARM, swing * 40)
 		rotate(player, LLEG, swing * 40)
 		rotate(player, RLEG, swing * -40)
 	end,
+
 	[MINE] = function(player)
 		local name = player:get_player_name()
+
 		local pitch = look_pitch[name]
 		local swing = math_sin(step * 4 * animation_speed[name])
 		local hand_swing = math_sin(step * 8 * animation_speed[name])
+
 		rotate(player, CAPE, swing * 5 + 10)
 		rotate(player, LARM)
 		rotate(player, RARM, hand_swing * 20 + 80 + pitch)
 		rotate(player, LLEG)
 		rotate(player, RLEG)
 	end,
+
 	[WALK_MINE] = function(player)
 		local name = player:get_player_name()
+
 		local pitch = look_pitch[name]
 		local swing = math_sin(step * 4 * animation_speed[name])
 		local hand_swing = math_sin(step * 8 * animation_speed[name])
+
 		rotate(player, CAPE, swing * 30 + 35)
 		rotate(player, LARM, swing * -40)
 		rotate(player, RARM, hand_swing * 20 + 80 + pitch)
 		rotate(player, LLEG, swing * 40)
 		rotate(player, RLEG, swing * -40)
 	end,
+
 	[SIT] = function(player)
-		local body_pos = vector_new(bone_position[model][BODY])
-		body_pos.y = body_pos.y - 6
-		player:set_bone_position(BODY, body_pos, vector_new(0, 0, 0))
+		local body_position = vector_new(bone_position[BODY])
+		body_position.y = body_position.y - 6
+
+		player:set_bone_position(BODY, body_position, {x = 0, y = 0, z = 0})
+
 		rotate(player, LARM)
 		rotate(player, RARM)
 		rotate(player, LLEG, 90)
 		rotate(player, RLEG, 90)
 	end,
+
 	[LAY] = function(player)
-		player:set_bone_position(BODY, vector_new(0, -9, 0), vector_new(270, 0, 0))
+		local body_position = {x = 0, y = -9, z = 0}
+		local body_rotation = {x = 270, y = 0, z = 0}
+
+		player:set_bone_position(BODY, body_position, body_rotation)
+
 		rotate(player, HEAD)
-	end,
-	[SNEAK] = function(player)
-		rotate(player, BODY, 5)
-	end,
-	[RESET_BODY] = function(player)
-		rotate(player, BODY)
 	end
 }
 
@@ -158,65 +175,92 @@ local function set_animation_speed(player, bool_sneak)
 	end
 end
 
-local current_animation = {}
+local previous_animation = {}
 
 local function set_animation(player, anim)
 	local name = player:get_player_name()
+	local player_previous_animation = previous_animation[name]
 
-	if anim == LAY or anim == SNEAK or anim == RESET_BODY then
-		if current_animation[name][1] ~= anim then
-			current_animation[name][1] = anim
+	if anim == LAY then
+		if player_previous_animation[1] ~= anim then
+			player_previous_animation[1] = anim
 			animations[anim](player)
 		end
 		return
 	end
 
 	if anim == WALK or anim == MINE or anim == WALK_MINE then
-		current_animation[name][2] = anim
+		player_previous_animation[2] = anim
 		animations[anim](player)
 		return
 	end
 
-	if current_animation[name][2] ~= anim then
-		current_animation[name][2] = anim
+	if player_previous_animation[2] ~= anim then
+		player_previous_animation[2] = anim
 		animations[anim](player)
 	end
 end
 
-local current_head = {}
+local previous_head = {}
 
-local function head_rotate(player, controls)
+local function head_rotate(player, y)
 	local name = player:get_player_name()
 
 	local pitch = look_pitch[name]
-	local look = vector_new(pitch, 0, 0)
-	if controls.left ~= controls.right then
-		look.y = controls.right and 10 or -10
-	end
+	local head = {x = pitch, y = y, z = 0}
 
-	local old_pitch, old_look = current_head[name][1], current_head[name][2]
-	if old_pitch ~= pitch or (not old_look or not vector_equals(old_look, look)) then
-		current_head[name] = {pitch, look}
-		rotate(player, HEAD, look.x, look.y, look.z)
+	local old_head = previous_head[name]
+
+	if head.x ~= old_head.x
+	or head.y ~= old_head.y
+	or head.z ~= old_head.z then
+		previous_head[name] = head
+		rotate(player, HEAD, head.x, head.y, head.z)
 	end
 end
 
-local function set_sneak_animation(player, bool_sneak)
-	set_animation(player, bool_sneak and SNEAK or RESET_BODY)
+local previous_yaw = {}
+
+local function body_moving(player, bool_sneak, no_rotate_body)
+	local name = player:get_player_name()
+	local yaw = player:get_look_yaw()
+
+	local player_previous_yaw = previous_yaw[name]
+	player_previous_yaw[#player_previous_yaw + 1] = yaw
+
+	local next_yaw = yaw
+	if #player_previous_yaw > 7 then
+		next_yaw = player_previous_yaw[1]
+		table_remove(player_previous_yaw, 1)
+	end
+
+	local x = bool_sneak and 5 or 0
+	local y = math_deg(yaw - next_yaw)
+
+	if not no_rotate_body then
+		rotate(player, BODY, x, y)
+	end
+
+	head_rotate(player, -y)
 end
 
 minetest.register_on_joinplayer(function(player)
 	local name = player:get_player_name()
-	current_head[name] = {}
-	current_animation[name] = {}
+
+	previous_yaw[name] = {}
+	previous_head[name] = {x = 0, y = 0, z = 0}
+	previous_animation[name] = {}
 end)
 
 minetest.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
-	animation_speed[name] = nil
+
 	look_pitch[name] = nil
-	current_head[name] = nil
-	current_animation[name] = nil
+	animation_speed[name] = nil
+
+	previous_yaw[name] = nil
+	previous_head[name] = nil
+	previous_animation[name] = nil
 end)
 
 minetest.register_globalstep(function(dtime)
@@ -240,23 +284,22 @@ minetest.register_globalstep(function(dtime)
 			if animation == "walk" then
 				set_animation_speed(player, bool_sneak)
 				set_animation(player, WALK)
-				set_sneak_animation(player, bool_sneak)
+				body_moving(player, bool_sneak)
 			elseif animation == "mine" then
 				set_animation_speed(player, bool_sneak)
 				set_animation(player, MINE)
-				set_sneak_animation(player, bool_sneak)
+				body_moving(player, bool_sneak)
 			elseif animation == "walk_mine" then
 				set_animation_speed(player, bool_sneak)
 				set_animation(player, WALK_MINE)
-				set_sneak_animation(player, bool_sneak)
+				body_moving(player, bool_sneak)
 			elseif animation == "sit" then
 				set_animation(player, SIT)
+				body_moving(player, bool_sneak, true)
 			else
 				set_animation(player, STAND)
-				set_sneak_animation(player, bool_sneak)
+				body_moving(player, bool_sneak)
 			end
-
-			head_rotate(player, controls)
 		end
 	end
 end)
