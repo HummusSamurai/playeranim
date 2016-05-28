@@ -205,15 +205,14 @@ local function head_rotate(player, y)
 	local name = player:get_player_name()
 
 	local pitch = look_pitch[name]
-	local head = {x = pitch, y = y, z = 0}
+	local head = {x = pitch, y = y}
 
 	local old_head = previous_head[name]
 
 	if head.x ~= old_head.x
-	or head.y ~= old_head.y
-	or head.z ~= old_head.z then
+	or head.y ~= old_head.y then
 		previous_head[name] = head
-		rotate(player, HEAD, head.x, head.y, head.z)
+		rotate(player, HEAD, head.x, head.y)
 	end
 end
 
@@ -259,7 +258,7 @@ minetest.register_on_joinplayer(function(player)
 	local name = player:get_player_name()
 
 	previous_yaw[name] = {}
-	previous_head[name] = {x = 0, y = 0, z = 0}
+	previous_head[name] = {x = 0, y = 0}
 	previous_body[name] = {x = 0, y = 0}
 end)
 
