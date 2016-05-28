@@ -233,22 +233,18 @@ local function body_moving(player, bool_sneak, no_rotate_body)
 		table_remove(player_previous_yaw, 1)
 	end
 
-	local x = bool_sneak and 5 or 0
-	local y = math_deg(yaw - next_yaw)
+	local x, y = 0, 0
+	if not no_rotate_body then
+		x = bool_sneak and 5 or 0
+		y = math_deg(yaw - next_yaw)
+	end
+
 	local old_body = previous_body[name]
 
-	if no_rotate_body then
-		if 0 ~= old_body.x
-		or 0 ~= old_body.y then
-			rotate(player, BODY)
-			previous_body[name] = {x = 0, y = 0}
-		end
-	else
-		if x ~= old_body.x
-		or y ~= old_body.y then
-			rotate(player, BODY, x, y)
-			previous_body[name] = {x = x, y = y}
-		end
+	if x ~= old_body.x
+	or y ~= old_body.y then
+		rotate(player, BODY, x, y)
+		previous_body[name] = {x = x, y = y}
 	end
 
 	head_rotate(player, -y)
