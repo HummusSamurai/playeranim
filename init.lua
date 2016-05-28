@@ -204,15 +204,13 @@ local previous_head = {}
 local function head_rotate(player, y)
 	local name = player:get_player_name()
 
-	local pitch = look_pitch[name]
-	local head = {x = pitch, y = y}
-
+	local x = look_pitch[name]
 	local old_head = previous_head[name]
 
-	if head.x ~= old_head.x
-	or head.y ~= old_head.y then
-		previous_head[name] = head
-		rotate(player, HEAD, head.x, head.y)
+	if x ~= old_head.x
+	or y ~= old_head.y then
+		previous_head[name] = {x = x, y = y}
+		rotate(player, HEAD, x, y)
 	end
 end
 
