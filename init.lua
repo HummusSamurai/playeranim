@@ -7,7 +7,6 @@ local math_deg = math.deg
 local table_remove = table.remove
 local get_animation = default.player_get_animation
 local get_connected_players = minetest.get_connected_players
-local ipairs = ipairs
 
 -- Animation alias
 local STAND = 1
@@ -179,24 +178,23 @@ local previous_animation = {}
 
 local function set_animation(player, anim)
 	local name = player:get_player_name()
-	local player_previous_animation = previous_animation[name]
 
 	if anim == LAY then
-		if player_previous_animation[1] ~= anim then
-			player_previous_animation[1] = anim
+		if previous_animation[name] ~= anim then
+			previous_animation[name] = anim
 			animations[anim](player)
 		end
 		return
 	end
 
 	if anim == WALK or anim == MINE or anim == WALK_MINE then
-		player_previous_animation[2] = anim
+		previous_animation[name] = anim
 		animations[anim](player)
 		return
 	end
 
-	if player_previous_animation[2] ~= anim then
-		player_previous_animation[2] = anim
+	if previous_animation[name] ~= anim then
+		previous_animation[name] = anim
 		animations[anim](player)
 	end
 end
@@ -220,25 +218,38 @@ local function head_rotate(player, y)
 end
 
 local previous_yaw = {}
+local previous_body = {}
 
 local function body_moving(player, bool_sneak, no_rotate_body)
 	local name = player:get_player_name()
 	local yaw = player:get_look_yaw()
 
 	local player_previous_yaw = previous_yaw[name]
-	player_previous_yaw[#player_previous_yaw + 1] = yaw
+	local index = #player_previous_yaw + 1
+	player_previous_yaw[index] = yaw
 
 	local next_yaw = yaw
-	if #player_previous_yaw > 7 then
+	if index > 7 then
 		next_yaw = player_previous_yaw[1]
 		table_remove(player_previous_yaw, 1)
 	end
 
 	local x = bool_sneak and 5 or 0
 	local y = math_deg(yaw - next_yaw)
+	local old_body = previous_body[name]
 
-	if not no_rotate_body then
-		rotate(player, BODY, x, y)
+	if no_rotate_body then
+		if 0 ~= old_body.x
+		or 0 ~= old_body.y then
+			rotate(player, BODY)
+			previous_body[name] = {x = 0, y = 0}
+		end
+	else
+		if x ~= old_body.x
+		or y ~= old_body.y then
+			rotate(player, BODY, x, y)
+			previous_body[name] = {x = x, y = y}
+		end
 	end
 
 	head_rotate(player, -y)
@@ -249,7 +260,7 @@ minetest.register_on_joinplayer(function(player)
 
 	previous_yaw[name] = {}
 	previous_head[name] = {x = 0, y = 0, z = 0}
-	previous_animation[name] = {}
+	previous_body[name] = {x = 0, y = 0}
 end)
 
 minetest.register_on_leaveplayer(function(player)
@@ -260,6 +271,7 @@ minetest.register_on_leaveplayer(function(player)
 
 	previous_yaw[name] = nil
 	previous_head[name] = nil
+	previous_body[name] = nil
 	previous_animation[name] = nil
 end)
 
@@ -269,7 +281,13 @@ minetest.register_globalstep(function(dtime)
 		step = 1
 	end
 
-	for _, player in ipairs(get_connected_players()) do
+	local players = get_connected_players()
+
+	local player_count = #players
+	if player_count == 0 then return end
+
+	for i = 1, player_count do
+		local player = players[i]
 		local animation = get_animation(player).animation
 
 		if animation == "lay" then -- No head rotate
