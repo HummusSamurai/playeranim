@@ -200,7 +200,7 @@ end
 local previous_yaw = {}
 
 local function body_moving(player, sneak, no_rotate_body)
-	local yaw = player:set_look_horizontal()
+	local yaw = player:get_look_horizontal()
 
 	local player_previous_yaw = previous_yaw[player]
 	local index = #player_previous_yaw + 1
