@@ -172,7 +172,7 @@ local animations = {
 }
 
 local function update_look_pitch(player)
-	local pitch = player:get_look_vertical() * 180 / math_pi
+	local pitch = -player:get_look_vertical() * 180 / math_pi
 
 	if look_pitch[player] ~= pitch then
 		look_pitch[player] = pitch
